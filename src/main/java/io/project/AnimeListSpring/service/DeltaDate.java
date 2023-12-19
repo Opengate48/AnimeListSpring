@@ -1,12 +1,9 @@
 package io.project.AnimeListSpring.service;
 
-import java.sql.Time;
-import java.sql.Timestamp;
+
 import java.time.*;
 import java.time.temporal.Temporal;
 import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
 
 public class DeltaDate {
     public static String get(Short[] TitleReleaseTime, boolean type, Integer utc) {

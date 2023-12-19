@@ -5,10 +5,12 @@ import io.project.AnimeListSpring.model.User;
 import io.project.AnimeListSpring.model.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ResourceUtils;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
@@ -16,6 +18,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,7 +37,7 @@ public class AnimeList extends TelegramLongPollingBot {
         listofCommands.add(new BotCommand("/deleteatitle", "delete your title"));
         listofCommands.add(new BotCommand("/displaythelist", "show a list of titles"));
         listofCommands.add(new BotCommand("/totitles", "go to titles"));
-        listofCommands.add(new BotCommand("/settheUTCtimezone", "set up the UTC time zone"));
+        listofCommands.add(new BotCommand("/settheutctimezone", "set up the UTC time zone"));
         listofCommands.add(new BotCommand("/menu", "show the main menu"));
 
         try {
@@ -237,7 +240,7 @@ public class AnimeList extends TelegramLongPollingBot {
         if (usersstate.containsKey(id)){
             if (usersstate.get(id) == 1){
                 User usr = userRepository.findById(id).get();
-                boolean success = usr.addOngoing(msg.getText());
+                boolean success = usr.addTitle(msg.getText());
                 if(success) {
                     userRepository.save(usr);
                     InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
@@ -258,7 +261,7 @@ public class AnimeList extends TelegramLongPollingBot {
                 }
                 else{
                     usersstate.remove(id);
-                    sendText(id, "You have already added a title with this name!");
+                    sendText(id, "Something went wrong. You may have already added a title with that name. Check out the template.");
                 }
             }
             else if (usersstate.get(id) == 2){
@@ -301,9 +304,14 @@ public class AnimeList extends TelegramLongPollingBot {
             }
             else if (usersstate.get(id)==6){
                 User usr = userRepository.findById(id).get();
-                usr.setTitleDate(usr.getLastAddedTitle(),msg.getText());
-                userRepository.save(usr);
-                sendText(id,"Done!");
+                boolean success = usr.setTitleDate(usr.getLastAddedTitle(),msg.getText());
+                if (success) {
+                    userRepository.save(usr);
+                    sendText(id, "Done!");
+                }
+                else{
+                    sendText(id, "Something went wrong.");
+                }
                 usersstate.remove(id);
             }
             return;
@@ -314,7 +322,8 @@ public class AnimeList extends TelegramLongPollingBot {
                     User usr = new User();
                     usr.setId(id);
                     userRepository.save(usr);
-                    sendText(id, "Let's go!");
+                    sendText(id, "Set the UTC time zone that you will use to set the release dates of the titles (from -11 to +12):");
+                    usersstate.put(id,(byte)4);
                 }
                 else{
                     sendText(id, "You have already started!");
@@ -347,43 +356,67 @@ public class AnimeList extends TelegramLongPollingBot {
                 User usr = userRepository.findById(id).get();
                 sendTextWithButtons(id,"Your titles:", usr.getAListWithButtons());
             }
-            else if (msg.getText().equals("/settheUTCtimezone")){
-                sendText(id, "Установите значение пояс UTC, который вы будете использовать для задания дат выходов тайтлов (от -11 до +12):");
+            else if (msg.getText().equals("/settheutctimezone")){
+                User usr = userRepository.findById(id).get();
+                sendText(id, "Your current UTC is  " + usr.getUtc() + ". Set the UTC time zone that you will use to set the release dates of the titles (from -11 to +12):");
                 usersstate.put(id,(byte)4);
             }
             else if (msg.getText().equals("/menu")){
-                InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
-                List<InlineKeyboardButton> rowInLine = new ArrayList<>();
-                var titleListButton = new InlineKeyboardButton();
-                var titlesButton = new InlineKeyboardButton();
-                var utcSettingsButton = new InlineKeyboardButton();
-                titleListButton.setText("List of titles");
-                titleListButton.setCallbackData(listCBD);
-                titlesButton.setText("To the title");
-                titlesButton.setCallbackData(toTheTitleCBD);
-                utcSettingsButton.setText("UTC settings");
-                utcSettingsButton.setCallbackData(utcSettingsCBD);
-                rowInLine.add(titleListButton);
-                rowInLine.add(titlesButton);
-                rowInLine.add(utcSettingsButton);
-                rowsInLine.add(rowInLine);
-                rowInLine = new ArrayList<>();
-                var addButton = new InlineKeyboardButton();
-                var delButton = new InlineKeyboardButton();
-                addButton.setText("Add a new title");
-                addButton.setCallbackData(addOngoingCBD);
-                delButton.setText("Delete a title");
-                delButton.setCallbackData(delOngoingCBD);
-                rowInLine.add(addButton);
-                rowInLine.add(delButton);
-                rowsInLine.add(rowInLine);
-                inlineKeyboardMarkup.setKeyboard(rowsInLine);
-                sendTextWithButtons(id, "Menu", inlineKeyboardMarkup);
+                try {
+                    sendMenu(id);
+                } catch (TelegramApiException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            else{
+                sendText(id,"Invalid request. Check out the list of commands.");
             }
             return;
         }
 
+    }
+    public void sendMenu(long chatId) throws TelegramApiException, IOException {
+        File file = ResourceUtils.getFile("C:\\Users\\makar\\Pictures\\Saved Pictures\\anime_escapizm.jpg");
+        InputFile image = new InputFile();
+        image.setMedia(file);
+        SendPhoto sendPhoto = new SendPhoto();
+        sendPhoto.setPhoto(image);
+        sendPhoto.setChatId(String.valueOf(chatId));
+        InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+        List<InlineKeyboardButton> rowInLine = new ArrayList<>();
+        var titleListButton = new InlineKeyboardButton();
+        var titlesButton = new InlineKeyboardButton();
+        var utcSettingsButton = new InlineKeyboardButton();
+        titleListButton.setText("List of titles");
+        titleListButton.setCallbackData(listCBD);
+        titlesButton.setText("To the title");
+        titlesButton.setCallbackData(toTheTitleCBD);
+        utcSettingsButton.setText("UTC settings");
+        utcSettingsButton.setCallbackData(utcSettingsCBD);
+        rowInLine.add(titleListButton);
+        rowInLine.add(titlesButton);
+        rowInLine.add(utcSettingsButton);
+        rowsInLine.add(rowInLine);
+        rowInLine = new ArrayList<>();
+        var addButton = new InlineKeyboardButton();
+        var delButton = new InlineKeyboardButton();
+        addButton.setText("Add a new title");
+        addButton.setCallbackData(addOngoingCBD);
+        delButton.setText("Delete a title");
+        delButton.setCallbackData(delOngoingCBD);
+        rowInLine.add(addButton);
+        rowInLine.add(delButton);
+        rowsInLine.add(rowInLine);
+        inlineKeyboardMarkup.setKeyboard(rowsInLine);
+        sendPhoto.setReplyMarkup(inlineKeyboardMarkup);
+        try {
+            execute(sendPhoto);                      //Actually sending the message
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);      //Any error will be printed here
+        }
     }
     public void sendTextWithButtons(Long who, String what, InlineKeyboardMarkup inlineKeyboardMarkup){
         SendMessage sm = SendMessage.builder()

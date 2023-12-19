@@ -2,10 +2,6 @@ package io.project.AnimeListSpring.model;
 
 import jakarta.persistence.*;
 
-import java.util.Arrays;
-
-//@Entity
-//@Table(name = "animetable")
 @Entity
 public class Title {
     @Id
