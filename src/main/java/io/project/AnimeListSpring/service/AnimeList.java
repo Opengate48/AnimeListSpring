@@ -70,6 +70,8 @@ public class AnimeList extends TelegramLongPollingBot {
     String setTypeCBD = "SET_TYPE";
     String setSeriesCBD = "SET_SERIES";
     String setMovieCBD = "SET_MOVIE";
+    String delThisOngoingCBD = "DEL_THIS";
+    String setLinkCBD = "SET_LINK";
     private boolean reading = false;
 
 
@@ -103,6 +105,7 @@ public class AnimeList extends TelegramLongPollingBot {
                     var setTimeButton = new InlineKeyboardButton();
                     var setTypeButton = new InlineKeyboardButton();
                     var linkButton = new InlineKeyboardButton();
+                    var setLinkButton = new InlineKeyboardButton();
                     linkButton.setText("Watch!");
                     linkButton.setUrl(usr.getTitleLink(callBackData));
                     rowInLine.add(linkButton);
@@ -114,10 +117,19 @@ public class AnimeList extends TelegramLongPollingBot {
                     setTimeButton.setCallbackData(setTimeCBD);
                     setTypeButton.setText("Change the type");
                     setTypeButton.setCallbackData(setTypeCBD);
+                    setLinkButton.setText("Edit/add a link");
+                    setLinkButton.setCallbackData(setLinkCBD);
                     inlineKeyboardMarkup.setKeyboard(rowsInLine);
                     rowInLine.add(setNameButton);
                     rowInLine.add(setTimeButton);
                     rowInLine.add(setTypeButton);
+                    rowInLine.add(setLinkButton);
+                    rowsInLine.add(rowInLine);
+                    rowInLine = new ArrayList<>();
+                    var delButton = new InlineKeyboardButton();
+                    delButton.setText("Delete a title");
+                    delButton.setCallbackData(delThisOngoingCBD);
+                    rowInLine.add(delButton);
                     rowsInLine.add(rowInLine);
                     sendTextWithButtons(chatId, usr.getATitle(callBackData), inlineKeyboardMarkup);
                 }
@@ -131,16 +143,26 @@ public class AnimeList extends TelegramLongPollingBot {
                     var setNameButton = new InlineKeyboardButton();
                     var setTimeButton = new InlineKeyboardButton();
                     var setTypeButton = new InlineKeyboardButton();
+                    var setLinkButton = new InlineKeyboardButton();
                     setNameButton.setText("Сhange the name");
                     setNameButton.setCallbackData(setNameCBD);
                     setTimeButton.setText("Change the date");
                     setTimeButton.setCallbackData(setTimeCBD);
                     setTypeButton.setText("Change the type");
+                    setLinkButton.setText("Edit/add a link");
+                    setLinkButton.setCallbackData(setLinkCBD);
                     setTypeButton.setCallbackData(setTypeCBD);
                     inlineKeyboardMarkup.setKeyboard(rowsInLine);
                     rowInLine.add(setNameButton);
                     rowInLine.add(setTimeButton);
                     rowInLine.add(setTypeButton);
+                    rowInLine.add(setLinkButton);
+                    rowsInLine.add(rowInLine);
+                    rowInLine = new ArrayList<>();
+                    var delButton = new InlineKeyboardButton();
+                    delButton.setText("Delete a title");
+                    delButton.setCallbackData(delThisOngoingCBD);
+                    rowInLine.add(delButton);
                     rowsInLine.add(rowInLine);
                     sendTextWithButtons(chatId, usr.getATitle(callBackData), inlineKeyboardMarkup);
                 }
@@ -231,6 +253,14 @@ public class AnimeList extends TelegramLongPollingBot {
                 usr.setTitleType(usr.getLastAddedTitle(),false);
                 userRepository.save(usr);
                 sendText(chatId,"Done!");
+            } else if (callBackData.equals(delThisOngoingCBD)) {
+                usr.delOngoing(usr.getLastAddedTitle());
+                userRepository.save(usr);
+                sendText(chatId,"Done!");
+            }
+            else if (callBackData.equals(setLinkCBD)){
+                sendText(chatId,"Enter your link:");
+                usersstate.put(chatId,(byte)7);
             }
             return;
         }
@@ -281,6 +311,7 @@ public class AnimeList extends TelegramLongPollingBot {
                 usr.setTitleLink(usr.getLastAddedTitle(),msg.getText());
                 userRepository.save(usr);
                 usersstate.remove(id);
+                sendText(id,"Done!");
             }
             else if (usersstate.get(id) == 4){
                 int userUTC = Integer.parseInt(msg.getText());
@@ -314,6 +345,12 @@ public class AnimeList extends TelegramLongPollingBot {
                 }
                 usersstate.remove(id);
             }
+            else if (usersstate.get(id)==7){
+                User usr = userRepository.findById(id).get();
+                usr.setTitleLink(usr.getLastAddedTitle(),msg.getText());
+                userRepository.save(usr);
+                sendText(id,"Done!");
+            }
             return;
         }
         else if (msg.isCommand()) {
@@ -346,7 +383,8 @@ public class AnimeList extends TelegramLongPollingBot {
                 rowInLine.add(delButton);
                 rowsInLine.add(rowInLine);
                 inlineKeyboardMarkup.setKeyboard(rowsInLine);
-                sendTextWithButtons(id, String.valueOf(userRepository.findById(id).map(User::getAList)), inlineKeyboardMarkup);
+                User usr = userRepository.findById(id).get();
+                sendTextWithButtons(id, usr.getAList(), inlineKeyboardMarkup);
             }
             else if (msg.getText().equals("/deleteatitle")){
                 sendText(id, "Write the title name:");
